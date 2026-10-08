@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Slide-Wire Potentiometer</title>
+<style>
+:root{
+  --bg:#0B1A2B; --grid:rgba(242,237,228,.045); --panel:#0F2236; --line:rgba(242,237,228,.18);
+  --text:#F2EDE4; --muted:#9AA7B5; --green:#7FD4A8; --amber:#E8B23A; --red:#E57373;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,"Courier New",monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden}
+body{
+  background-color:var(--bg);
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:28px 28px;
+  color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Sarabun","Noto Sans Thai",sans-serif;
+  -webkit-tap-highlight-color:transparent;
+}
+.app{display:grid;grid-template-rows:auto minmax(0,1fr) auto auto;grid-template-columns:minmax(0,1fr);height:100vh;height:100dvh;width:100%;max-width:100%;overflow:hidden}
+.app>*{min-width:0}
+header{display:flex;align-items:center;gap:8px;padding:10px 16px 6px}
+.ttl{flex:1;min-width:0}
+h1{margin:0;font-size:clamp(.8rem,2.4vw,1.35rem);font-weight:700;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sub{color:var(--muted);font-size:.8rem;margin-top:2px}
+.hbtn{background:transparent;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:7px 13px;font-size:.92rem;cursor:pointer;white-space:nowrap}
+.hbtn.on{border-color:var(--amber);color:var(--amber)}
+
+#stage{position:relative;display:flex;gap:8px;padding:2px 6px;min-height:0}
+#left{flex:2;min-width:0;min-height:0;display:flex;flex-direction:column;justify-content:center;gap:6px}
+#circWrap{flex:0 1 auto;width:100%;aspect-ratio:970/400;min-width:0;min-height:0}
+#zoomWrap{flex:0 0 auto;width:100%;aspect-ratio:1000/130;min-width:0}
+#meterWrap{flex:1.3;min-width:0;min-height:0;display:flex;align-items:center}
+#stage svg{width:100%;height:100%;display:block}
+#circuit{touch-action:none;cursor:ew-resize}
+@media (orientation:portrait){
+  #stage{flex-direction:column}
+  #left{flex:0 1 auto}
+  #circWrap{max-height:46vh}
+  #zoomWrap{max-height:13vh}
+  #meterWrap{flex:1;min-height:18vh}
+}
+#nullBanner{position:absolute;top:6px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:10px;
+  background:rgba(127,212,168,.14);border:1.5px solid var(--green);color:var(--green);border-radius:12px;padding:8px 10px 8px 14px;
+  font-weight:700;white-space:nowrap;animation:pulse 1.2s ease-in-out infinite;z-index:5}
+@keyframes pulse{50%{box-shadow:0 0 18px rgba(127,212,168,.45)}}
+.gbtn{background:var(--green);color:#08311f;border:0;border-radius:8px;padding:7px 12px;font-weight:700;font-size:.92rem;cursor:pointer}
+.gbtn:disabled{opacity:.4;cursor:default}
+
+.controls{padding:4px 10px 2px}
+.lrow{display:flex;align-items:center;gap:8px;padding:0 6px 4px;flex:0 0 auto}
+.sbtn{background:transparent;color:var(--text);border:1px solid var(--line);border-radius:8px;width:56px;height:44px;font-family:var(--mono);font-size:1rem;cursor:pointer;flex:0 0 auto}
+input[type=range]{flex:1;min-width:0;height:44px;accent-color:var(--amber)}
+.lval{font-family:var(--mono);color:var(--amber);min-width:104px;text-align:right;font-weight:700;font-size:1.15rem}
+.chips{display:flex;gap:6px;align-items:center;overflow-x:auto;white-space:nowrap;padding-bottom:2px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+@media (max-width:600px){.chips{flex-wrap:wrap;row-gap:6px}.sep{display:none}}
+.clabel{color:var(--muted);font-family:var(--mono);font-size:.85rem;margin:0 2px 0 8px}
+.clabel:first-child{margin-left:0}
+.chip{background:transparent;color:var(--text);border:1px solid var(--line);border-radius:999px;padding:4px 10px;font-family:var(--mono);font-size:.82rem;cursor:pointer;flex:0 0 auto}
+.chip.on{border-color:var(--green);color:var(--green);background:rgba(127,212,168,.12)}
+.sep{width:1px;height:22px;background:var(--line);margin:0 4px;flex:0 0 auto}
+.rx{font-family:var(--mono);color:var(--amber)}
+
+footer{font-size:.72rem;color:var(--muted);text-align:center;padding:4px 12px calc(8px + env(safe-area-inset-bottom))}
+
+.hidden{display:none!important}
+.mbg{position:fixed;inset:0;background:rgba(3,10,18,.7);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px}
+.modal{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;width:min(520px,100%);max-height:90vh;overflow:auto}
+.modal h2{margin:0 0 12px;font-size:1.05rem}
+.field{display:flex;flex-direction:column;gap:4px;margin-bottom:10px;font-size:.88rem;color:var(--muted)}
+.inp{background:#0B1A2B;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:9px 10px;font-size:1rem;font-family:var(--mono);width:100%}
+.mrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.msg{font-size:.85rem;min-height:1.2em;margin-top:6px;word-break:break-all}
+.msg.bad{color:var(--red)} .msg.ok{color:var(--green)}
+.big{font-family:var(--mono);font-size:1.4rem;color:var(--amber);font-weight:700}
+.steps{font-family:var(--mono);font-size:.95rem;line-height:1.7}
+.steps div{padding:6px 10px;border-left:3px solid var(--green);background:rgba(127,212,168,.06);border-radius:6px;margin-bottom:6px}
+.steps .ans{color:var(--green);font-weight:700;font-size:1.1rem}
+table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:.88rem;margin-top:10px}
+th,td{border-bottom:1px solid var(--line);padding:6px;text-align:center}
+th{color:var(--muted);font-weight:500}
+details{border-top:1px solid var(--line);margin-top:12px;padding-top:10px}
+summary{cursor:pointer;color:var(--muted);font-size:.9rem;margin-bottom:8px}
+.end{justify-content:flex-end;margin-top:14px}
+</style>
+</head>
+<body>
+<div class="app">
+<header>
+  <div class="ttl"><h1 data-i18n="title"></h1></div>
+  <button class="hbtn" id="langBtn">ไทย</button>
+  <button class="hbtn" id="teachBtn" data-i18n="teacher"></button>
+</header>
+
+<div id="stage">
+  <div id="left">
+    <div id="circWrap"><svg id="circuit" viewBox="15 70 970 400" preserveAspectRatio="xMidYMid meet"></svg></div>
+    <div id="zoomWrap"><svg id="zoom" viewBox="0 0 1000 130" preserveAspectRatio="xMidYMid meet"></svg></div>
+    <div class="lrow">
+      <button class="sbtn" id="Lminus">−0.1</button>
+      <input type="range" id="L" min="0" max="100" step="0.1" value="20" aria-label="jockey">
+      <button class="sbtn" id="Lplus">+0.1</button>
+    </div>
+  </div>
+  <div id="meterWrap"><svg id="meter" viewBox="20 28 260 158" preserveAspectRatio="xMidYMid meet"></svg></div>
+</div>
+
+<div class="controls">
+  <div class="chips">
+    <span class="clabel">Rs</span><span id="rsChips" style="display:contents"></span>
+    <span class="sep"></span>
+    <span class="clabel">Vin</span><span id="vChips" style="display:contents"></span>
+    <span class="sep"></span>
+    <span class="clabel">Rx</span><span class="rx" id="rxShow">?</span>
+  </div>
+</div>
+
+<footer id="credit"></footer>
+</div>
+
+<!-- Password -->
+<div class="mbg hidden" id="pwModal">
+  <div class="modal" style="width:min(360px,100%)">
+    <h2 data-i18n="teacher"></h2>
+    <input class="inp" type="password" id="pwIn" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-ph="pw">
+    <div class="msg bad" id="pwMsg"></div>
+    <div class="mrow end">
+      <button class="hbtn" data-close="pwModal" data-i18n="close"></button>
+      <button class="gbtn" id="pwOk" data-i18n="enter"></button>
+    </div>
+  </div>
+</div>
+
+<!-- Teacher panel -->
+<div class="mbg hidden" id="tModal">
+  <div class="modal">
+    <h2 data-i18n="tPanel"></h2>
+    <div class="mrow" style="margin-bottom:12px"><span data-i18n="trueRx" style="color:var(--muted)"></span><span class="big" id="trueRx"></span></div>
+    <div class="field"><span data-i18n="setRx"></span>
+      <input type="range" id="rxSl" min="1" max="500" step="0.1" style="width:100%">
+      <div class="mrow"><input class="inp" type="number" id="rxIn" min="1" max="500" step="0.1" style="width:130px">
+        <button class="hbtn" id="rxApply" data-i18n="apply"></button>
+        <button class="hbtn" id="rxRand" data-i18n="random"></button></div>
+    </div>
+    <button class="gbtn" id="copyBtn" data-i18n="copyLink"></button>
+    <div class="msg" id="copyMsg"></div>
+    <details>
+      <summary data-i18n="changePw"></summary>
+      <div class="field"><span data-i18n="email"></span><input class="inp" type="email" id="cpEmail" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+      <div class="field"><span data-i18n="adminPw"></span><input class="inp" type="password" id="cpAdmin" autocomplete="off" autocapitalize="off" autocorrect="off"></div>
+      <div class="field"><span data-i18n="newPw"></span><input class="inp" type="password" id="cpNew" autocomplete="new-password" autocapitalize="off" autocorrect="off"></div>
+      <div class="field"><span data-i18n="confirmPw"></span><input class="inp" type="password" id="cpNew2" autocomplete="new-password" autocapitalize="off" autocorrect="off"></div>
+      <button class="gbtn" id="cpSave" data-i18n="save"></button>
+      <div class="msg" id="cpMsg"></div>
+    </details>
+    <div class="mrow end">
+      <button class="hbtn" id="tExit" data-i18n="exitT"></button>
+      <button class="gbtn" data-close="tModal" data-i18n="close"></button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+const T={
+ en:{title:"Measuring Resistance with a Slide-Wire Potentiometer",sub:"Metre bridge",
+  teacher:"Teacher",calc:"Calculate Rx",results:"Results",record:"Record",clear:"Clear",avg:"Average",err:"Error vs true",close:"Close",
+  s1:"Ls (A → D)",s2:"Lx = 100 − Ls",s3:"Rx = Rs × (Lx / Ls)",
+  pw:"Password",enter:"Enter",wrong:"Wrong password",tPanel:"Teacher",trueRx:"True Rx =",setRx:"Set Rx (Ω)",apply:"Apply",random:"Random",
+  copyLink:"Copy student link",copied:"Copied — send this link to students:",noLink:"Open the app from the website (GitHub Pages) to create a link.",
+  changePw:"Change password",email:"Email",adminPw:"Admin password",newPw:"New password",confirmPw:"Confirm new password",save:"Save",
+  pwSaved:"Password changed on this browser.",pwMis:"New passwords do not match.",pwEmpty:"Enter a new password.",authFail:"Email or admin password is incorrect.",noStore:"This browser cannot save settings.",
+  exitT:"Exit teacher mode",
+  credit:"Asst.Prof.Dr. Rossumont Jaryabhand · Rajamangala University of Technology Tawan-ok, Uthenthawai Campus · No Right Reserved"},
+ th:{title:"การวัดความต้านทานด้วยโพเทนชิออมิเตอร์",sub:"สะพานลวด",
+  teacher:"ครู",calc:"คำนวณ Rx",results:"ผลการทดลอง",record:"บันทึก",clear:"ล้าง",avg:"ค่าเฉลี่ย",err:"คลาดจากค่าจริง",close:"ปิด",
+  s1:"Ls (A → D)",s2:"Lx = 100 − Ls",s3:"Rx = Rs × (Lx / Ls)",
+  pw:"รหัสผ่าน",enter:"เข้าสู่ระบบ",wrong:"รหัสผ่านไม่ถูกต้อง",tPanel:"ครู",trueRx:"ค่า Rx จริง =",setRx:"ตั้งค่า Rx (Ω)",apply:"ใช้ค่านี้",random:"สุ่ม",
+  copyLink:"คัดลอกลิงก์ให้นักศึกษา",copied:"คัดลอกแล้ว — ส่งลิงก์นี้ให้นักศึกษา:",noLink:"ต้องเปิดแอปจากเว็บ (GitHub Pages) ก่อน จึงจะสร้างลิงก์ได้",
+  changePw:"เปลี่ยนรหัสผ่าน",email:"อีเมล",adminPw:"รหัสผ่านผู้ดูแล",newPw:"รหัสผ่านใหม่",confirmPw:"ยืนยันรหัสผ่านใหม่",save:"บันทึก",
+  pwSaved:"เปลี่ยนรหัสผ่านแล้ว (ในเบราว์เซอร์นี้)",pwMis:"รหัสผ่านใหม่ทั้งสองช่องไม่ตรงกัน",pwEmpty:"กรุณาใส่รหัสผ่านใหม่",authFail:"อีเมลหรือรหัสผ่านผู้ดูแลไม่ถูกต้อง",noStore:"เบราว์เซอร์นี้บันทึกค่าไม่ได้",
+  exitT:"ออกจากโหมดครู",
+  credit:"ผศ.ดร.รสสุมนต์ จารยะพันธุ์ · มหาวิทยาลัยเทคโนโลยีราชมงคลตะวันออก อุเทนถวาย · ไม่สงวนลิขสิทธิ์"}
+};
+let lang="en";
+const $=id=>document.getElementById(id);
+const tr=k=>T[lang][k]||k;
+
+/* ---------- SHA-256 (password is never stored as plain text) ---------- */
+function sha256(str){
+  const isPrime=n=>{for(let f=2;f*f<=n;f++)if(n%f===0)return false;return true;};
+  const K=[],H=[];for(let n=2,i=0;i<64;n++)if(isPrime(n)){if(i<8)H[i]=(Math.pow(n,1/2)%1*4294967296)|0;K[i++]=(Math.pow(n,1/3)%1*4294967296)|0;}
+  const b=new TextEncoder().encode(str),l=b.length,n=((l+9+63)>>6)<<6,m=new Uint8Array(n);m.set(b);m[l]=0x80;
+  const dv=new DataView(m.buffer);dv.setUint32(n-4,(l*8)>>>0);dv.setUint32(n-8,Math.floor(l*8/4294967296));
+  const r=(x,k)=>(x>>>k)|(x<<(32-k)),W=new Int32Array(64);let h=H.slice();
+  for(let i=0;i<n;i+=64){
+    for(let t=0;t<16;t++)W[t]=dv.getInt32(i+4*t);
+    for(let t=16;t<64;t++){const a=W[t-15],c=W[t-2];W[t]=(W[t-16]+(r(a,7)^r(a,18)^(a>>>3))+W[t-7]+(r(c,17)^r(c,19)^(c>>>10)))|0;}
+    let[a,bb,c,d,e,f,g,hh]=h;
+    for(let t=0;t<64;t++){const t1=(hh+(r(e,6)^r(e,11)^r(e,25))+((e&f)^(~e&g))+K[t]+W[t])|0,t2=((r(a,2)^r(a,13)^r(a,22))+((a&bb)^(a&c)^(bb&c)))|0;
+      hh=g;g=f;f=e;e=(d+t1)|0;d=c;c=bb;bb=a;a=(t1+t2)|0;}
+    h=[h[0]+a,h[1]+bb,h[2]+c,h[3]+d,h[4]+e,h[5]+f,h[6]+g,h[7]+hh].map(x=>x|0);
+  }
+  return h.map(x=>(x>>>0).toString(16).padStart(8,"0")).join("");
+}
+const norm=s=>String(s).normalize("NFC").replace(/[‘’‚‛′´`]/g,"'").trim();
+const DEFAULT_PW="8db889767c2c37605279743265bbe7e417a602cf63627e30551165e1f9f68e2e";
+const ADMIN="74f89be178af41f05b80025a7731d6acea563feaf7e7f545bac3b7ee39ef80a4";
+const PW_KEY="vlab_teacher_pw_hash";
+function pwHash(){try{return localStorage.getItem(PW_KEY)||DEFAULT_PW;}catch(e){return DEFAULT_PW;}}
+
+/* ---------- Physics ---------- */
+const RW=5, RG=50, I0=2e-6;           // wire 5 Ω, galvanometer 50 Ω, needle sensitivity
+const RS_LIST=[10,20,50,100,200], V_LIST=[1.5,3,6];
+const S={L:20,Rs:50,Rx:47,Vin:3};
+let teacher=false, rows=[], last=null;
+const round1=x=>Math.round(x*10)/10;
+function ig(L){
+  const r1=RW*L/100,r2=RW-r1,VD=S.Vin*(100-L)/100,VB=S.Vin*S.Rx/(S.Rs+S.Rx);
+  return (VD-VB)/(S.Rs*S.Rx/(S.Rs+S.Rx)+r1*r2/RW+RG);
+}
+function isNull(L){
+  const Lr=round1(L);if(Lr<0.15||Lr>99.85)return false;
+  const g0=Math.abs(ig(Lr)),gm=ig(Lr-0.1),gp=ig(Lr+0.1);
+  return g0<=Math.abs(gm)+1e-15&&g0<=Math.abs(gp)+1e-15&&(Math.sign(gm)!==Math.sign(gp)||g0<1e-12);
+}
+
+/* ---------- Circuit ---------- */
+const XA=60,XC=940,K=8.8,X=L=>XA+K*L, MONO='font-family="ui-monospace,SF Mono,Menlo,Consolas,monospace"';
+function drawCircuit(){
+  const L=S.L,xD=X(L),nul=isNull(L);
+  const w='stroke="#F2EDE4" stroke-opacity=".8" stroke-width="3" fill="none"';
+  let s=`<defs><marker id="ar" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto-start-reverse"><path d="M0,0 L8,4 L0,8z" fill="#9AA7B5"/></marker></defs>`;
+  s+=`<path d="M${XA},300 L${XA},120 L220,120" ${w}/><path d="M380,120 L620,120" ${w}/><path d="M780,120 L${XC},120 L${XC},300" ${w}/>`;
+  s+=`<path d="M220,120 L238,120 M362,120 L380,120" ${w}/>`;
+  s+=`<rect x="238" y="100" width="124" height="40" rx="14" fill="#D9C3A0" stroke="#A8916C" stroke-width="1.5"/>`;
+  colorBands(S.Rs).forEach((c,i)=>{const x=[254,274,294,334][i];
+    s+= c==="silver" ? `<defs><linearGradient id="slv" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8E959D"/><stop offset=".45" stop-color="#F4F6F8"/><stop offset="1" stop-color="#7D848C"/></linearGradient></defs><rect x="${x}" y="100" width="11" height="40" fill="url(#slv)" stroke="#6E747B" stroke-width=".8"/>`
+                     : `<rect x="${x}" y="100" width="11" height="40" fill="${c}"/>`;});
+  s+=`<text x="300" y="88" fill="#7FD4A8" font-size="20" text-anchor="middle" font-weight="700" ${MONO}>Rs</text>`;
+  s+=`<rect x="620" y="95" width="160" height="50" rx="6" fill="#0F2236" stroke="#E8B23A" stroke-width="2.5"/>`;
+  s+=`<text x="700" y="127" fill="#E8B23A" font-size="22" text-anchor="middle" font-weight="700" ${MONO}>Rx=${teacher?S.Rx+"Ω":"?"}</text>`;
+  s+=`<circle cx="500" cy="120" r="6" fill="#F2EDE4"/><text x="500" y="100" fill="#F2EDE4" font-size="20" text-anchor="middle" ${MONO}>B</text>`;
+  s+=`<path d="M500,120 L500,149" ${w}/>`;
+  s+=`<circle cx="500" cy="175" r="26" fill="#0F2236" stroke="#F2EDE4" stroke-width="3"/>`;
+  s+=`<text x="500" y="184" fill="#F2EDE4" font-size="24" text-anchor="middle" font-weight="700" ${MONO}>G</text>`;
+  s+=`<path d="M500,201 L${xD},232" stroke="#E8B23A" stroke-width="2.5" fill="none"/>`;
+  s+=`<g transform="translate(0,-80)">`;
+  s+=`<line x1="${XA}" y1="380" x2="${XC}" y2="380" stroke="#C98A4B" stroke-width="7" stroke-linecap="round"/>`;
+  for(let i=0;i<=100;i++){const x=X(i),big=i%10===0,mid=i%5===0;
+    s+=`<line x1="${x}" y1="389" x2="${x}" y2="${big?409:mid?402:396}" stroke="#9AA7B5" stroke-width="${big?2:1}"/>`;
+    if(big)s+=`<text x="${x}" y="432" fill="#9AA7B5" font-size="18" text-anchor="middle" ${MONO}>${i}</text>`;}
+  s+=`<circle cx="${XA}" cy="380" r="7" fill="#F2EDE4"/><circle cx="${XC}" cy="380" r="7" fill="#F2EDE4"/>`;
+  s+=`<text x="${XA-14}" y="372" fill="#F2EDE4" font-size="20" text-anchor="end" ${MONO}>A</text><text x="${XC+14}" y="372" fill="#F2EDE4" font-size="20" ${MONO}>C</text>`;
+  s+=`<rect x="${xD-9}" y="306" width="18" height="52" rx="5" fill="#E8B23A"/>`;
+  s+=`<path d="M${xD-7},356 L${xD+7},356 L${xD},378 Z" fill="#F5D58A"/>`;
+  s+=`<text x="${xD+16}" y="330" fill="#E8B23A" font-size="18" ${MONO}>D</text>`;
+  if(L>1.5){s+=`<line x1="${XA}" y1="458" x2="${xD}" y2="458" stroke="#9AA7B5" stroke-width="1.5" marker-start="url(#ar)" marker-end="url(#ar)"/>`;
+    s+=`<text x="${(XA+xD)/2}" y="484" fill="#7FD4A8" font-size="20" text-anchor="middle" ${MONO}>Ls</text>`;}
+  if(L<98.5){s+=`<line x1="${xD}" y1="458" x2="${XC}" y2="458" stroke="#9AA7B5" stroke-width="1.5" marker-start="url(#ar)" marker-end="url(#ar)"/>`;
+    s+=`<text x="${(xD+XC)/2}" y="484" fill="#E8B23A" font-size="20" text-anchor="middle" ${MONO}>Lx</text>`;}
+  s+=`<path d="M${XA},380 L${XA},518 L482,518" ${w}/><path d="M518,518 L${XC},518 L${XC},380" ${w}/>`;
+  s+=`<line x1="482" y1="496" x2="482" y2="540" stroke="#F2EDE4" stroke-width="4"/><line x1="518" y1="506" x2="518" y2="530" stroke="#F2EDE4" stroke-width="8"/>`;
+  s+=`<text x="470" y="500" fill="#F2EDE4" font-size="16" text-anchor="end" ${MONO}>+</text><text x="530" y="504" fill="#F2EDE4" font-size="18" ${MONO}>−</text>`;
+  s+=`<text x="560" y="542" fill="#F2EDE4" font-size="20" ${MONO}>Vin=${S.Vin}V</text>`;
+  s+=`</g>`;
+  $("circuit").innerHTML=s;
+}
+
+/* 4-band colour code: digit, digit, multiplier, tolerance (silver ±10%) */
+function colorBands(R){
+  const C=["#111111","#7B4A26","#D23B2F","#E8762B","#F2D33A","#2E9E4F","#2F62D6","#8A4FC7","#8C8C8C","#F5F5F5"];
+  const e=Math.floor(Math.log10(R))-1, d=Math.round(R/Math.pow(10,e));
+  return [C[Math.floor(d/10)],C[d%10],C[e],"silver"];
+}
+
+/* ---------- Magnified scale (±5 cm around the jockey, mm divisions) ---------- */
+function drawZoom(){
+  const L=S.L,U=96,cx=500,px=v=>cx+(v-L)*U;
+  let s=`<rect x="4" y="4" width="992" height="122" rx="10" fill="#0F2236" stroke="rgba(242,237,228,.25)"/>`;
+  const a=Math.max(0,px(0)),b=Math.min(996,px(100));
+  s+=`<line x1="${Math.max(4,a)}" y1="26" x2="${Math.min(996,b)}" y2="26" stroke="#C98A4B" stroke-width="8"/>`;
+  const lo=Math.max(0,Math.ceil((L-5.3)*10)),hi=Math.min(1000,Math.floor((L+5.3)*10));
+  for(let m=lo;m<=hi;m++){const x=px(m/10);if(x<8||x>992)continue;const cm=m%10===0,half=m%5===0;
+    s+=`<line x1="${x}" y1="34" x2="${x}" y2="${cm?74:half?62:50}" stroke="${cm?"#F2EDE4":"#9AA7B5"}" stroke-width="${cm?3:half?2:1.3}"/>`;
+    if(cm&&x>30&&x<960)s+=`<text x="${x}" y="108" fill="#F2EDE4" font-size="30" font-weight="700" text-anchor="middle" ${MONO}>${m/10}</text>`;}
+  s+=`<line x1="${cx}" y1="10" x2="${cx}" y2="80" stroke="#E8B23A" stroke-width="2.5"/>`;
+  s+=`<path d="M${cx-10},8 L${cx+10},8 L${cx},24 Z" fill="#E8B23A"/>`;
+  s+=`<text x="984" y="120" fill="#9AA7B5" font-size="16" text-anchor="end" ${MONO}>cm</text>`;
+  $("zoom").innerHTML=s;
+}
+
+/* ---------- Galvanometer ---------- */
+function drawMeter(){
+  const cx=150,cy=170,R=130,p=a=>[cx+R*Math.sin(a),cy-R*Math.cos(a)];
+  const [x1,y1]=p(-Math.PI/3),[x2,y2]=p(Math.PI/3);
+  let s=`<path d="M${x1},${y1} A${R},${R} 0 0 1 ${x2},${y2}" stroke="rgba(242,237,228,.12)" stroke-width="16" fill="none"/>`;
+  for(let i=-30;i<=30;i+=5){const a=i*2*Math.PI/180,big=i%10===0,r1=big?112:118,c=i===0?"#7FD4A8":"#9AA7B5";
+    s+=`<line x1="${cx+r1*Math.sin(a)}" y1="${cy-r1*Math.cos(a)}" x2="${cx+132*Math.sin(a)}" y2="${cy-132*Math.cos(a)}" stroke="${c}" stroke-width="${big?2.5:1.5}"/>`;
+    if(big)s+=`<text x="${cx+98*Math.sin(a)}" y="${cy+6-98*Math.cos(a)}" fill="${c}" font-size="13" text-anchor="middle" ${MONO}>${i}</text>`;}
+  s+=`<line id="needle" x1="${cx}" y1="${cy}" x2="${cx}" y2="${cy-128}" stroke="#E57373" stroke-width="3" stroke-linecap="round"/>`;
+  s+=`<circle cx="${cx}" cy="${cy}" r="8" fill="#F2EDE4"/><text x="${cx}" y="${cy-22}" fill="#9AA7B5" font-size="15" text-anchor="middle" ${MONO}>G</text>`;
+  $("meter").innerHTML=s;
+}
+let needleCur=0,needleTgt=0;
+(function anim(){needleCur+=(needleTgt-needleCur)*0.2;const n=$("needle");if(n)n.setAttribute("transform",`rotate(${needleCur.toFixed(2)} 150 170)`);requestAnimationFrame(anim);})();
+
+/* ---------- Update ---------- */
+function update(){
+  S.L=Math.min(100,Math.max(0,round1(S.L)));
+  $("L").value=S.L;
+  const nul=isNull(S.L),I=ig(S.L);
+  needleTgt=nul?0:Math.sign(I)*60*Math.min(1,Math.log10(1+Math.abs(I)/I0)/4);
+  $("rxShow").textContent=teacher?S.Rx+" Ω":"?";
+  $("teachBtn").classList.toggle("on",teacher);
+  drawCircuit();drawZoom();
+}
+function chips(){
+  $("rsChips").innerHTML=RS_LIST.map(v=>`<button class="chip${v===S.Rs?" on":""}" data-rs="${v}">${v}Ω</button>`).join("");
+  $("vChips").innerHTML=V_LIST.map(v=>`<button class="chip${v===S.Vin?" on":""}" data-v="${v}">${v}V</button>`).join("");
+}
+document.addEventListener("click",e=>{
+  const c=e.target.closest(".chip");if(!c)return;
+  if(c.dataset.rs){S.Rs=+c.dataset.rs;chips();update();}
+  if(c.dataset.v){S.Vin=+c.dataset.v;chips();update();}
+});
+
+/* ---------- Jockey: slider, ±0.1, drag on wire ---------- */
+$("L").addEventListener("input",e=>{S.L=+e.target.value;update();});
+$("Lminus").onclick=()=>{S.L-=0.1;update();};
+$("Lplus").onclick=()=>{S.L+=0.1;update();};
+const svg=$("circuit");let drag=false;
+function svgX(e){const pt=svg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;return pt.matrixTransform(svg.getScreenCTM().inverse());}
+svg.addEventListener("pointerdown",e=>{const p=svgX(e);if(p.y<200)return;drag=true;svg.setPointerCapture(e.pointerId);S.L=(p.x-XA)/K;update();});
+svg.addEventListener("pointermove",e=>{if(!drag)return;S.L=(svgX(e).x-XA)/K;update();});
+["pointerup","pointercancel"].forEach(t=>svg.addEventListener(t,()=>drag=false));
+
+/* ---------- Results ---------- */
+function renderTable(){}
+/* ---------- Teacher ---------- */
+$("teachBtn").onclick=()=>{
+  if(teacher){openTPanel();return;}
+  $("pwIn").value="";$("pwMsg").textContent="";$("pwModal").classList.remove("hidden");setTimeout(()=>$("pwIn").focus(),50);
+};
+function tryPw(){
+  if(sha256(norm($("pwIn").value))===pwHash()){teacher=true;$("pwModal").classList.add("hidden");update();renderTable();openTPanel();}
+  else $("pwMsg").textContent=tr("wrong");
+}
+$("pwOk").onclick=tryPw;$("pwIn").addEventListener("keydown",e=>{if(e.key==="Enter")tryPw();});
+function openTPanel(){$("trueRx").textContent=S.Rx+" Ω";$("rxIn").value=S.Rx;$("rxSl").value=S.Rx;$("copyMsg").textContent="";$("cpMsg").textContent="";$("tModal").classList.remove("hidden");}
+function setRx(v){v=round1(+v);if(!(v>=1&&v<=500))return;S.Rx=v;$("trueRx").textContent=v+" Ω";$("rxIn").value=v;$("rxSl").value=v;update();renderTable();}
+$("rxSl").addEventListener("input",e=>setRx(e.target.value));
+$("rxApply").onclick=()=>setRx($("rxIn").value);
+$("rxRand").onclick=()=>setRx(randomRx());
+$("tExit").onclick=()=>{teacher=false;$("tModal").classList.add("hidden");update();renderTable();};
+$("copyBtn").onclick=()=>{
+  const m=$("copyMsg");m.className="msg";
+  if(location.origin==="null"||!/^https?:/.test(location.protocol)){m.textContent=tr("noLink");m.className="msg bad";return;}
+  const k=btoa(JSON.stringify({x:S.Rx,n:Math.random().toString(36).slice(2,8)})).replace(/=+$/,"");
+  const url=location.origin+location.pathname+"?k="+encodeURIComponent(k);
+  const show=()=>{m.textContent=tr("copied")+" "+url;m.className="msg ok";};
+  if(navigator.clipboard)navigator.clipboard.writeText(url).then(show,show);else show();
+};
+$("cpSave").onclick=()=>{
+  const m=$("cpMsg");m.className="msg bad";
+  const em=$("cpEmail").value.trim().toLowerCase();
+  if(sha256(em+"|"+norm($("cpAdmin").value))!==ADMIN){m.textContent=tr("authFail");return;}
+  const a=norm($("cpNew").value),b=norm($("cpNew2").value);
+  if(!a){m.textContent=tr("pwEmpty");return;}
+  if(a!==b){m.textContent=tr("pwMis");return;}
+  try{localStorage.setItem(PW_KEY,sha256(a));}catch(e){m.textContent=tr("noStore");return;}
+  ["cpEmail","cpAdmin","cpNew","cpNew2"].forEach(i=>$(i).value="");
+  m.textContent=tr("pwSaved");m.className="msg ok";
+};
+
+/* ---------- Language ---------- */
+function applyLang(){
+  document.documentElement.lang=lang;
+  document.querySelectorAll("[data-i18n]").forEach(el=>el.textContent=tr(el.dataset.i18n));
+  document.querySelectorAll("[data-ph]").forEach(el=>el.placeholder=tr(el.dataset.ph));
+  $("langBtn").textContent=lang==="en"?"ไทย":"EN";
+  $("credit").textContent=tr("credit");
+  renderTable();
+}
+$("langBtn").onclick=()=>{lang=lang==="en"?"th":"en";applyLang();};
+
+function randomRx(){return round1(5+Math.random()*145);}
+
+/* ---------- Start ---------- */
+S.Rx=randomRx();
+try{const k=new URLSearchParams(location.search).get("k");
+  if(k){const o=JSON.parse(atob(decodeURIComponent(k)));if(o.x>=1&&o.x<=500)S.Rx=round1(o.x);}}catch(e){}
+drawMeter();chips();applyLang();update();
+})();
+</script>
+</body>
+</html>
